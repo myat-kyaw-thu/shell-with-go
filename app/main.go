@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -44,6 +45,15 @@ func main() {
 
 		input = strings.TrimSpace(input)
 
+		parts := strings.Fields(input)
+
+		if len(parts) == 0 {
+			continue
+		}
+
+		command := parts[0]
+		args := parts[1:]
+
 		if input == "exit" {
 			os.Exit(0)
 		} else if strings.HasPrefix(input, "echo ") {
@@ -58,6 +68,11 @@ func main() {
 			} else {
 				fmt.Printf("%s: not found\n", arg)
 			}
+		} else if path := findInPath(command); path != "" {
+			cmd := exec.Command(path, args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Run()
 		} else {
 			fmt.Printf("%s: command not found\n", input)
 		}
