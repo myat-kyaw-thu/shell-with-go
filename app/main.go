@@ -12,6 +12,7 @@ var builtins = map[string]bool{
 	"echo": true,
 	"exit": true,
 	"type": true,
+	"pwd":  true,
 }
 
 func findInPath(command string) string {
@@ -74,6 +75,13 @@ func main() {
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			cmd.Run()
+		} else if command == "pwd" {
+			dir, err := os.Getwd()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(dir)
+			}
 		} else {
 			fmt.Printf("%s: command not found\n", command)
 		}
