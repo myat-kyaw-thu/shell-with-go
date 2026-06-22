@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+type redirect struct {
+	stdoutFile string
+}
+
 var builtins = map[string]bool{
 	"echo": true,
 	"exit": true,
@@ -26,21 +30,43 @@ func findInPath(command string) string {
 	return ""
 }
 
-func runBuiltin(command string, args []string) {
+func extractRedirect(parts []string) ([]string, redirect) {
+	var r redirect
+	var filtered []string
+	for i := 0; i < len(parts); i++ {
+		if (parts[i] == ">" || parts[i] == "1>") && i+1 < len(parts) {
+			r.stdoutFile = parts[i+1]
+			i++ // skip the filename token
+		} else {
+			filtered = append(filtered, parts[i])
+		}
+	}
+	return filtered, r
+}
+
+func runBuiltin(command string, args []string, r redirect) {
+	var out *os.File = os.Stdout
+	if r.stdoutFile != "" {
+		f, err := os.Create(r.stdoutFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		defer f.Close()
+		out = f
+	}
+
 	switch command {
 	case "exit":
 		os.Exit(0)
-
 	case "echo":
-		fmt.Println(strings.Join(args, " "))
-
+		fmt.Fprintln(out, strings.Join(args, " "))
 	case "pwd":
 		if dir, err := os.Getwd(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
-			fmt.Println(dir)
+			fmt.Fprintln(out, dir)
 		}
-
 	case "cd":
 		if len(args) == 0 {
 			return
@@ -52,7 +78,6 @@ func runBuiltin(command string, args []string) {
 		if err := os.Chdir(dir); err != nil {
 			fmt.Printf("cd: %s: No such file or directory\n", dir)
 		}
-
 	case "type":
 		if len(args) == 0 {
 			return
@@ -60,16 +85,16 @@ func runBuiltin(command string, args []string) {
 		arg := args[0]
 		switch {
 		case builtins[arg]:
-			fmt.Printf("%s is a shell builtin\n", arg)
+			fmt.Fprintf(out, "%s is a shell builtin\n", arg)
 		case findInPath(arg) != "":
-			fmt.Printf("%s is %s\n", arg, findInPath(arg))
+			fmt.Fprintf(out, "%s is %s\n", arg, findInPath(arg))
 		default:
-			fmt.Printf("%s: not found\n", arg)
+			fmt.Fprintf(out, "%s: not found\n", arg)
 		}
 	}
 }
 
-func runExternal(command string, args []string) {
+func runExternal(command string, args []string, r redirect) {
 	path := findInPath(command)
 	if path == "" {
 		fmt.Printf("%s: command not found\n", command)
@@ -77,8 +102,19 @@ func runExternal(command string, args []string) {
 	}
 	cmd := exec.Command(path, args...)
 	cmd.Args = append([]string{command}, args...)
-	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	if r.stdoutFile != "" {
+		f, err := os.Create(r.stdoutFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		defer f.Close()
+		cmd.Stdout = f
+	} else {
+		cmd.Stdout = os.Stdout
+	}
 	cmd.Run()
 }
 
@@ -147,12 +183,18 @@ func main() {
 			continue
 		}
 
+		parts, r := extractRedirect(parts)
+		if len(parts) == 0 {
+			continue
+		}
+
 		command, args := parts[0], parts[1:]
 
 		if builtins[command] {
-			runBuiltin(command, args)
+			runBuiltin(command, args, r)
 		} else {
-			runExternal(command, args)
+			runExternal(command, args, r)
 		}
+
 	}
 }
