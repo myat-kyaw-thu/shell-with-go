@@ -86,6 +86,7 @@ func parseArgs(input string) []string {
 	var args []string
 	var current strings.Builder
 	inSingle := false
+	inDouble := false
 
 	for i := 0; i < len(input); i++ {
 		ch := input[i]
@@ -96,8 +97,16 @@ func parseArgs(input string) []string {
 			} else {
 				current.WriteByte(ch)
 			}
+		case inDouble:
+			if ch == '"' {
+				inDouble = false
+			} else {
+				current.WriteByte(ch)
+			}
 		case ch == '\'':
 			inSingle = true
+		case ch == '"':
+			inDouble = true
 		case ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r':
 			if current.Len() > 0 {
 				args = append(args, current.String())
