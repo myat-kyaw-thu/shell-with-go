@@ -12,6 +12,7 @@ type redirect struct {
 	stdoutFile   string
 	stdoutAppend bool
 	stderrFile   string
+	stderrAppend bool
 }
 
 var builtins = map[string]bool{
@@ -46,6 +47,11 @@ func extractRedirect(parts []string) ([]string, redirect) {
 			i++
 		} else if parts[i] == "2>" && i+1 < len(parts) {
 			r.stderrFile = parts[i+1]
+			r.stderrAppend = false
+			i++
+		} else if parts[i] == "2>>" && i+1 < len(parts) {
+			r.stderrFile = parts[i+1]
+			r.stderrAppend = true
 			i++
 		} else {
 			filtered = append(filtered, parts[i])
@@ -77,7 +83,7 @@ func runBuiltin(command string, args []string, r redirect) {
 	}
 	errOut := os.Stderr
 	if r.stderrFile != "" {
-		f, err := os.Create(r.stderrFile)
+		f, err := openOutput(r.stderrFile, r.stderrAppend)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -147,7 +153,7 @@ func runExternal(command string, args []string, r redirect) {
 	}
 
 	if r.stderrFile != "" {
-		f, err := os.Create(r.stderrFile)
+		f, err := openOutput(r.stderrFile, r.stderrAppend)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
