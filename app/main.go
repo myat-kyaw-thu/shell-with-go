@@ -110,6 +110,18 @@ func runExternal(command string, args []string, r redirect) {
 	cmd.Stderr = os.Stderr
 
 	if r.stdoutFile != "" {
+		f, err := os.Create(r.stdoutFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		defer f.Close()
+		cmd.Stdout = f
+	} else {
+		cmd.Stdout = os.Stdout
+	}
+
+	if r.stderrFile != "" {
 		f, err := os.Create(r.stderrFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
