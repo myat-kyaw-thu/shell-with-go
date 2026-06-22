@@ -9,8 +9,9 @@ import (
 )
 
 type redirect struct {
-	stdoutFile string
-	stderrFile string
+	stdoutFile   string
+	stdoutAppend bool
+	stderrFile   string
 }
 
 var builtins = map[string]bool{
@@ -37,7 +38,12 @@ func extractRedirect(parts []string) ([]string, redirect) {
 	for i := 0; i < len(parts); i++ {
 		if (parts[i] == ">" || parts[i] == "1>") && i+1 < len(parts) {
 			r.stdoutFile = parts[i+1]
-			i++ // skip the filename token
+			r.stdoutAppend = false
+			i++
+		} else if (parts[i] == ">>" || parts[i] == "1>>") && i+1 < len(parts) {
+			r.stdoutFile = parts[i+1]
+			r.stdoutAppend = true
+			i++
 		} else if parts[i] == "2>" && i+1 < len(parts) {
 			r.stderrFile = parts[i+1]
 			i++
@@ -48,10 +54,20 @@ func extractRedirect(parts []string) ([]string, redirect) {
 	return filtered, r
 }
 
+func openOutput(path string, append bool) (*os.File, error) {
+	flags := os.O_WRONLY | os.O_CREATE
+	if append {
+		flags |= os.O_APPEND
+	} else {
+		flags |= os.O_TRUNC
+	}
+	return os.OpenFile(path, flags, 0644)
+}
+
 func runBuiltin(command string, args []string, r redirect) {
 	out := os.Stdout
 	if r.stdoutFile != "" {
-		f, err := os.Create(r.stdoutFile)
+		f, err := openOutput(r.stdoutFile, r.stdoutAppend)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -119,7 +135,7 @@ func runExternal(command string, args []string, r redirect) {
 	cmd.Stderr = os.Stderr
 
 	if r.stdoutFile != "" {
-		f, err := os.Create(r.stdoutFile)
+		f, err := openOutput(r.stdoutFile, r.stdoutAppend)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
