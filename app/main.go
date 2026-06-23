@@ -47,7 +47,11 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 		}
 		if len(matches) == 1 {
 			completion := matches[0][len(filePrefix):]
-			return [][]rune{[]rune(completion + " ")}, len(filePrefix)
+			suffix := " "
+			if info, err := os.Stat(dir + matches[0]); err == nil && info.IsDir() {
+				suffix = "/"
+			}
+			return [][]rune{[]rune(completion + suffix)}, len(filePrefix)
 		}
 		if len(matches) == 0 {
 			fmt.Fprint(os.Stderr, "\x07")
