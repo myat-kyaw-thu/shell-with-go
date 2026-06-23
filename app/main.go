@@ -176,11 +176,12 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 }
 
 var builtins = map[string]bool{
-	"echo": true,
-	"exit": true,
-	"type": true,
-	"pwd":  true,
-	"cd":   true,
+	"echo":     true,
+	"exit":     true,
+	"type":     true,
+	"pwd":      true,
+	"cd":       true,
+	"complete": true,
 }
 
 func findInPath(command string) string {
@@ -376,7 +377,7 @@ func parseArgs(input string) []string {
 }
 
 func main() {
-	completions := []string{"echo", "exit", "type", "pwd", "cd"}
+	completions := []string{"echo", "exit", "type", "pwd", "cd", "complete"}
 
 	completer := &tabCompleter{builtins: completions}
 
