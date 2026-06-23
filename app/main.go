@@ -70,7 +70,7 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 		return nil, 0
 	}
 
-	fmt.Fprintf(os.Stdout, "\n%s\n", strings.Join(matches, "  "))
+	fmt.Fprintf(os.Stdout, "\n%s\n$ %s", strings.Join(matches, "  "), input)
 	t.lastCount = 0
 	return nil, 0
 }
