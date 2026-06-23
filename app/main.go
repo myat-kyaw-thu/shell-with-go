@@ -51,7 +51,35 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 			if err == nil {
 				candidate := strings.TrimSpace(string(out))
 				if candidate != "" {
-					return [][]rune{[]rune(candidate[len(prefix):] + " ")}, len(prefix)
+					lines := strings.Split(candidate, "\n")
+					var candidates []string
+					for _, l := range lines {
+						l = strings.TrimSpace(l)
+						if l != "" {
+							candidates = append(candidates, l)
+						}
+					}
+					sort.Strings(candidates)
+
+					if len(candidates) == 1 {
+						return [][]rune{[]rune(candidates[0][len(prefix):] + " ")}, len(prefix)
+					}
+
+					if t.lastInput == input {
+						t.lastCount++
+					} else {
+						t.lastInput = input
+						t.lastCount = 1
+					}
+
+					if t.lastCount == 1 {
+						fmt.Fprint(os.Stdout, "\x07")
+						return nil, 0
+					}
+
+					fmt.Fprintf(os.Stdout, "\n%s\n$ %s", strings.Join(candidates, "  "), input)
+					t.lastCount = 0
+					return nil, 0
 				}
 			}
 			fmt.Fprint(os.Stdout, "\x07")
