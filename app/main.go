@@ -48,7 +48,11 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 		if len(matches) == 1 {
 			completion := matches[0][len(filePrefix):]
 			suffix := " "
-			if info, err := os.Stat(dir + matches[0]); err == nil && info.IsDir() {
+			fullPath := dir + "/" + matches[0]
+			if dir == "." {
+				fullPath = matches[0]
+			}
+			if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
 				suffix = "/"
 			}
 			return [][]rune{[]rune(completion + suffix)}, len(filePrefix)
