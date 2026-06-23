@@ -45,6 +45,13 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 				matches = append(matches, e.Name())
 			}
 		}
+		sort.Strings(matches)
+
+		if len(matches) == 0 {
+			fmt.Fprint(os.Stdout, "\x07")
+			return nil, 0
+		}
+
 		if len(matches) == 1 {
 			completion := matches[0][len(filePrefix):]
 			suffix := " "
@@ -57,9 +64,35 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 			}
 			return [][]rune{[]rune(completion + suffix)}, len(filePrefix)
 		}
-		if len(matches) == 0 {
-			fmt.Fprint(os.Stderr, "\x07")
+
+		// multiple matches
+		if t.lastInput == input {
+			t.lastCount++
+		} else {
+			t.lastInput = input
+			t.lastCount = 1
 		}
+
+		if t.lastCount == 1 {
+			fmt.Fprint(os.Stdout, "\x07")
+			return nil, 0
+		}
+
+		// second tab: display matches with dir indicators
+		var display []string
+		for _, m := range matches {
+			fullPath := dir + "/" + m
+			if dir == "." {
+				fullPath = m
+			}
+			if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
+				display = append(display, m+"/")
+			} else {
+				display = append(display, m)
+			}
+		}
+		fmt.Fprintf(os.Stdout, "\n%s\n$ %s", strings.Join(display, "  "), input)
+		t.lastCount = 0
 		return nil, 0
 	}
 
