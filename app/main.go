@@ -280,6 +280,7 @@ func runBuiltin(command string, args []string, r redirect) {
 			fmt.Fprintf(errOut, "complete: %s: no completion specification\n", args[1])
 		}
 
+	case "type":
 		if len(args) == 0 {
 			return
 		}
