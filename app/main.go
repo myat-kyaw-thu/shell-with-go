@@ -65,7 +65,23 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 			return [][]rune{[]rune(completion + suffix)}, len(filePrefix)
 		}
 
-		// multiple matches
+		lcp := matches[0]
+		for _, m := range matches[1:] {
+			for !strings.HasPrefix(m, lcp) {
+				lcp = lcp[:len(lcp)-1]
+			}
+		}
+
+		if len(lcp) > len(filePrefix) {
+			completion := lcp[len(filePrefix):]
+			t.lastInput = input[:strings.LastIndex(input, " ")+1] + dir + lcp
+			if dir == "." {
+				t.lastInput = input[:strings.LastIndex(input, " ")+1] + lcp
+			}
+			t.lastCount = 0
+			return [][]rune{[]rune(completion)}, len(filePrefix)
+		}
+
 		if t.lastInput == input {
 			t.lastCount++
 		} else {
@@ -78,7 +94,6 @@ func (t *tabCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 			return nil, 0
 		}
 
-		// second tab: display matches with dir indicators
 		var display []string
 		for _, m := range matches {
 			fullPath := dir + "/" + m
