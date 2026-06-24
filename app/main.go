@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/chzyer/readline"
 )
@@ -262,6 +263,7 @@ type job struct {
 	pid     int
 	command string
 	status  string
+	mu      sync.Mutex
 }
 
 var jobList []*job
@@ -376,15 +378,32 @@ func runBuiltin(command string, args []string, r redirect) {
 		}
 
 	case "jobs":
+		var remaining []*job
 		for _, j := range jobList {
+			j.mu.Lock()
+			status := j.status
+			j.mu.Unlock()
+
 			marker := " "
 			if j.id == jobCounter-1 {
 				marker = "+"
 			} else if j.id == jobCounter-2 {
 				marker = "-"
 			}
-			fmt.Fprintf(out, "[%d]%s  %-24s%s\n", j.id, marker, j.status, j.command)
+
+			cmd := j.command
+			if status == "Done" {
+				cmd = strings.TrimSuffix(strings.TrimSpace(j.command), "&")
+				cmd = strings.TrimSpace(cmd)
+			}
+
+			fmt.Fprintf(out, "[%d]%s  %-24s%s\n", j.id, marker, status, cmd)
+
+			if status != "Done" {
+				remaining = append(remaining, j)
+			}
 		}
+		jobList = remaining
 
 	case "type":
 		if len(args) == 0 {
@@ -450,7 +469,12 @@ func runExternal(command string, args []string, r redirect, background bool, raw
 		jobList = append(jobList, j)
 		fmt.Printf("[%d] %d\n", jobCounter, cmd.Process.Pid)
 		jobCounter++
-		go cmd.Wait()
+		go func() {
+			cmd.Wait()
+			j.mu.Lock()
+			j.status = "Done"
+			j.mu.Unlock()
+		}()
 	} else {
 		cmd.Run()
 	}
