@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -451,8 +452,14 @@ func runBuiltin(command string, args []string, r redirect) {
 		jobList = remaining
 
 	case "history":
-		for i, entry := range shellHistory {
-			fmt.Fprintf(out, "    %d  %s\n", i+1, entry)
+		start := 0
+		if len(args) > 0 {
+			if n, err := strconv.Atoi(args[0]); err == nil && n < len(shellHistory) {
+				start = len(shellHistory) - n
+			}
+		}
+		for i, entry := range shellHistory[start:] {
+			fmt.Fprintf(out, "    %d  %s\n", start+i+1, entry)
 		}
 
 	case "type":
