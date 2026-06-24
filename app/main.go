@@ -256,6 +256,7 @@ var builtins = map[string]bool{
 	"cd":       true,
 	"complete": true,
 	"jobs":     true,
+	"history":  true,
 }
 
 type job struct {
@@ -269,6 +270,8 @@ type job struct {
 var jobList []*job
 
 var completionSpecs = map[string]string{}
+
+var shellHistory []string
 
 func findInPath(command string) string {
 	for _, dir := range strings.Split(os.Getenv("PATH"), ":") {
@@ -446,6 +449,11 @@ func runBuiltin(command string, args []string, r redirect) {
 			}
 		}
 		jobList = remaining
+
+	case "history":
+		for i, entry := range shellHistory {
+			fmt.Fprintf(out, "    %d  %s\n", i+1, entry)
+		}
 
 	case "type":
 		if len(args) == 0 {
@@ -666,7 +674,7 @@ func parseArgs(input string) []string {
 }
 
 func main() {
-	completions := []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs"}
+	completions := []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history"}
 
 	completer := &tabCompleter{builtins: completions}
 
@@ -687,6 +695,10 @@ func main() {
 		input, err := rl.Readline()
 		if err != nil {
 			os.Exit(0)
+		}
+
+		if strings.TrimSpace(input) != "" {
+			shellHistory = append(shellHistory, input)
 		}
 
 		parts := parseArgs(input)
