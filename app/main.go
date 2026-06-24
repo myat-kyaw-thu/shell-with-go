@@ -257,6 +257,8 @@ var builtins = map[string]bool{
 	"jobs":     true,
 }
 
+var jobCounter = 1
+
 var completionSpecs = map[string]string{}
 
 func findInPath(command string) string {
@@ -383,7 +385,7 @@ func runBuiltin(command string, args []string, r redirect) {
 	}
 }
 
-func runExternal(command string, args []string, r redirect) {
+func runExternal(command string, args []string, r redirect, background bool) {
 	path := findInPath(command)
 	if path == "" {
 		fmt.Printf("%s: command not found\n", command)
@@ -416,7 +418,18 @@ func runExternal(command string, args []string, r redirect) {
 	} else {
 		cmd.Stderr = os.Stderr
 	}
-	cmd.Run()
+
+	if background {
+		if err := cmd.Start(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		fmt.Printf("[%d] %d\n", jobCounter, cmd.Process.Pid)
+		jobCounter++
+		go cmd.Wait()
+	} else {
+		cmd.Run()
+	}
 }
 
 func parseArgs(input string) []string {
@@ -501,12 +514,21 @@ func main() {
 			continue
 		}
 
+		background := false
+		if parts[len(parts)-1] == "&" {
+			background = true
+			parts = parts[:len(parts)-1]
+			if len(parts) == 0 {
+				continue
+			}
+		}
+
 		command, args := parts[0], parts[1:]
 
 		if builtins[command] {
 			runBuiltin(command, args, r)
 		} else {
-			runExternal(command, args, r)
+			runExternal(command, args, r, background)
 		}
 
 	}
