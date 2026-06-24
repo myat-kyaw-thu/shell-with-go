@@ -528,45 +528,84 @@ func runExternal(command string, args []string, r redirect, background bool, raw
 }
 
 func runPipeline(segments []string) {
-	cmds := make([]*exec.Cmd, len(segments))
-	for i, seg := range segments {
-		parts := parseArgs(seg)
-		if len(parts) == 0 {
-			return
-		}
-		path := findInPath(parts[0])
-		if path == "" {
-			fmt.Fprintf(os.Stderr, "%s: command not found\n", parts[0])
-			return
-		}
-		cmd := exec.Command(path, parts[1:]...)
-		cmd.Args = append([]string{parts[0]}, parts[1:]...)
-		cmds[i] = cmd
-	}
+	n := len(segments)
+	pipes := make([]*os.File, n-1)
+	pipeReaders := make([]*os.File, n-1)
 
-	for i := 0; i < len(cmds)-1; i++ {
-		pipe, err := cmds[i].StdoutPipe()
+	for i := 0; i < n-1; i++ {
+		r, w, err := os.Pipe()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
 		}
-		cmds[i+1].Stdin = pipe
+		pipeReaders[i] = r
+		pipes[i] = w
 	}
 
-	cmds[0].Stdin = os.Stdin
-	cmds[len(cmds)-1].Stdout = os.Stdout
-	for _, cmd := range cmds {
-		cmd.Stderr = os.Stderr
-	}
+	for i, seg := range segments {
+		parts := parseArgs(seg)
+		if len(parts) == 0 {
+			continue
+		}
 
-	for _, cmd := range cmds {
-		if err := cmd.Start(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return
+		var stdin *os.File
+		var stdout *os.File
+
+		if i == 0 {
+			stdin = os.Stdin
+		} else {
+			stdin = pipeReaders[i-1]
+		}
+
+		if i == n-1 {
+			stdout = os.Stdout
+		} else {
+			stdout = pipes[i]
+		}
+
+		if builtins[parts[0]] {
+			oldStdin := os.Stdin
+			oldStdout := os.Stdout
+			os.Stdin = stdin
+			os.Stdout = stdout
+			r := redirect{}
+			runBuiltin(parts[0], parts[1:], r)
+			os.Stdin = oldStdin
+			os.Stdout = oldStdout
+			if i < n-1 {
+				pipes[i].Close()
+			}
+		} else {
+			path := findInPath(parts[0])
+			if path == "" {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", parts[0])
+				if i < n-1 {
+					pipes[i].Close()
+				}
+				continue
+			}
+			cmd := exec.Command(path, parts[1:]...)
+			cmd.Args = append([]string{parts[0]}, parts[1:]...)
+			cmd.Stdin = stdin
+			cmd.Stdout = stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Start(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				continue
+			}
+			if i < n-1 {
+				pipes[i].Close()
+			}
+			go func(c *exec.Cmd) { c.Wait() }(cmd)
+		}
+
+		if i > 0 {
+			pipeReaders[i-1].Close()
 		}
 	}
-	for _, cmd := range cmds {
-		cmd.Wait()
+
+	for _, r := range pipeReaders {
+		r.Close()
 	}
 }
 
