@@ -319,6 +319,40 @@ func openOutput(path string, append bool) (*os.File, error) {
 	return os.OpenFile(path, flags, 0644)
 }
 
+func reapJobs(out *os.File) {
+	maxID := -1
+	secondID := -1
+	for _, j := range jobList {
+		if j.id > maxID {
+			secondID = maxID
+			maxID = j.id
+		} else if j.id > secondID {
+			secondID = j.id
+		}
+	}
+
+	var remaining []*job
+	for _, j := range jobList {
+		j.mu.Lock()
+		status := j.status
+		j.mu.Unlock()
+
+		if status == "Done" {
+			marker := " "
+			if j.id == maxID {
+				marker = "+"
+			} else if j.id == secondID {
+				marker = "-"
+			}
+			cmd := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(j.command), "&"))
+			fmt.Fprintf(out, "[%d]%s  %-24s%s\n", j.id, marker, status, cmd)
+		} else {
+			remaining = append(remaining, j)
+		}
+	}
+	jobList = remaining
+}
+
 func runBuiltin(command string, args []string, r redirect) {
 	out := os.Stdout
 	if r.stdoutFile != "" {
@@ -555,6 +589,7 @@ func main() {
 	defer rl.Close()
 
 	for {
+		reapJobs(os.Stdout)
 		fmt.Print("$ ")
 
 		input, err := rl.Readline()
