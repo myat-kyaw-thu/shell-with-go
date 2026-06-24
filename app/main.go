@@ -469,6 +469,18 @@ func runBuiltin(command string, args []string, r redirect) {
 			}
 			return
 		}
+		if len(args) >= 2 && args[0] == "-w" {
+			var builder strings.Builder
+			for _, line := range shellHistory {
+				builder.WriteString(line)
+				builder.WriteByte('\n')
+			}
+			err := os.WriteFile(args[1], []byte(builder.String()), 0644)
+			if err != nil {
+				fmt.Fprintln(errOut, err)
+			}
+			return
+		}
 		start := 0
 		if len(args) > 0 {
 			if n, err := strconv.Atoi(args[0]); err == nil && n < len(shellHistory) {
