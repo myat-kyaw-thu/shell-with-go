@@ -527,6 +527,49 @@ func runExternal(command string, args []string, r redirect, background bool, raw
 	}
 }
 
+func runPipeline(segments []string) {
+	cmds := make([]*exec.Cmd, len(segments))
+	for i, seg := range segments {
+		parts := parseArgs(seg)
+		if len(parts) == 0 {
+			return
+		}
+		path := findInPath(parts[0])
+		if path == "" {
+			fmt.Fprintf(os.Stderr, "%s: command not found\n", parts[0])
+			return
+		}
+		cmd := exec.Command(path, parts[1:]...)
+		cmd.Args = append([]string{parts[0]}, parts[1:]...)
+		cmds[i] = cmd
+	}
+
+	for i := 0; i < len(cmds)-1; i++ {
+		pipe, err := cmds[i].StdoutPipe()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+		cmds[i+1].Stdin = pipe
+	}
+
+	cmds[0].Stdin = os.Stdin
+	cmds[len(cmds)-1].Stdout = os.Stdout
+	for _, cmd := range cmds {
+		cmd.Stderr = os.Stderr
+	}
+
+	for _, cmd := range cmds {
+		if err := cmd.Start(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return
+		}
+	}
+	for _, cmd := range cmds {
+		cmd.Wait()
+	}
+}
+
 func parseArgs(input string) []string {
 	var args []string
 	var current strings.Builder
@@ -602,6 +645,12 @@ func main() {
 
 		parts := parseArgs(input)
 		if len(parts) == 0 {
+			continue
+		}
+
+		if strings.Contains(input, "|") {
+			segments := strings.Split(input, "|")
+			runPipeline(segments)
 			continue
 		}
 
