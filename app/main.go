@@ -378,6 +378,17 @@ func runBuiltin(command string, args []string, r redirect) {
 		}
 
 	case "jobs":
+		maxID := -1
+		secondID := -1
+		for _, j := range jobList {
+			if j.id > maxID {
+				secondID = maxID
+				maxID = j.id
+			} else if j.id > secondID {
+				secondID = j.id
+			}
+		}
+
 		var remaining []*job
 		for _, j := range jobList {
 			j.mu.Lock()
@@ -385,16 +396,15 @@ func runBuiltin(command string, args []string, r redirect) {
 			j.mu.Unlock()
 
 			marker := " "
-			if j.id == jobCounter-1 {
+			if j.id == maxID {
 				marker = "+"
-			} else if j.id == jobCounter-2 {
+			} else if j.id == secondID {
 				marker = "-"
 			}
 
 			cmd := j.command
 			if status == "Done" {
-				cmd = strings.TrimSuffix(strings.TrimSpace(j.command), "&")
-				cmd = strings.TrimSpace(cmd)
+				cmd = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(j.command), "&"))
 			}
 
 			fmt.Fprintf(out, "[%d]%s  %-24s%s\n", j.id, marker, status, cmd)
