@@ -275,6 +275,7 @@ var completionSpecs = map[string]string{}
 var rl *readline.Instance
 
 var shellHistory []string
+var unwrittenHistory []string
 
 func findInPath(command string) string {
 	for _, dir := range strings.Split(os.Getenv("PATH"), ":") {
@@ -479,6 +480,25 @@ func runBuiltin(command string, args []string, r redirect) {
 			if err != nil {
 				fmt.Fprintln(errOut, err)
 			}
+			unwrittenHistory = nil
+			return
+		}
+		if len(args) >= 2 && args[0] == "-a" {
+			var builder strings.Builder
+			for _, line := range unwrittenHistory {
+				builder.WriteString(line)
+				builder.WriteByte('\n')
+			}
+			f, err := os.OpenFile(args[1], os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				fmt.Fprintln(errOut, err)
+				return
+			}
+			defer f.Close()
+			if _, err := f.Write([]byte(builder.String())); err != nil {
+				fmt.Fprintln(errOut, err)
+			}
+			unwrittenHistory = nil
 			return
 		}
 		start := 0
@@ -737,6 +757,7 @@ func main() {
 		if strings.TrimSpace(input) != "" {
 			shellHistory = append(shellHistory, input)
 			rl.SaveHistory(input)
+			unwrittenHistory = append(unwrittenHistory, input)
 		}
 
 		parts := parseArgs(input)
