@@ -1,8 +1,0 @@
-# Compiled binaries
-*.exe
-*.out
-app/app
-/tmp/
-
-# Build artifacts
-codecrafters-build-*
