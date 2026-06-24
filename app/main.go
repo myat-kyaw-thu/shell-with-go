@@ -382,6 +382,7 @@ func runBuiltin(command string, args []string, r redirect) {
 
 	switch command {
 	case "exit":
+		saveHistory()
 		os.Exit(0)
 	case "echo":
 		fmt.Fprintln(out, strings.Join(args, " "))
@@ -525,6 +526,37 @@ func runBuiltin(command string, args []string, r redirect) {
 			fmt.Fprintf(out, "%s: not found\n", arg)
 		}
 	}
+}
+
+func loadHistory() {
+	histFile := os.Getenv("HISTFILE")
+	if histFile == "" {
+		return
+	}
+	data, err := os.ReadFile(histFile)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			shellHistory = append(shellHistory, line)
+			rl.SaveHistory(line)
+		}
+	}
+}
+
+func saveHistory() {
+	histFile := os.Getenv("HISTFILE")
+	if histFile == "" {
+		return
+	}
+	var builder strings.Builder
+	for _, line := range shellHistory {
+		builder.WriteString(line)
+		builder.WriteByte('\n')
+	}
+	_ = os.WriteFile(histFile, []byte(builder.String()), 0644)
 }
 
 func runExternal(command string, args []string, r redirect, background bool, rawCmd string) {
@@ -745,12 +777,15 @@ func main() {
 	}
 	defer rl.Close()
 
+	loadHistory()
+
 	for {
 		reapJobs(os.Stdout)
 		fmt.Print("$ ")
 
 		input, err := rl.Readline()
 		if err != nil {
+			saveHistory()
 			os.Exit(0)
 		}
 
