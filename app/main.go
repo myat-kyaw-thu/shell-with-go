@@ -268,8 +268,6 @@ type job struct {
 
 var jobList []*job
 
-var jobCounter = 1
-
 var completionSpecs = map[string]string{}
 
 func findInPath(command string) string {
@@ -504,15 +502,20 @@ func runExternal(command string, args []string, r redirect, background bool, raw
 			fmt.Fprintln(os.Stderr, err)
 			return
 		}
+		nextID := 1
+		for _, existing := range jobList {
+			if existing.id >= nextID {
+				nextID = existing.id + 1
+			}
+		}
 		j := &job{
-			id:      jobCounter,
+			id:      nextID,
 			pid:     cmd.Process.Pid,
 			command: rawCmd,
 			status:  "Running",
 		}
 		jobList = append(jobList, j)
-		fmt.Printf("[%d] %d\n", jobCounter, cmd.Process.Pid)
-		jobCounter++
+		fmt.Printf("[%d] %d\n", nextID, cmd.Process.Pid)
 		go func() {
 			cmd.Wait()
 			j.mu.Lock()
