@@ -258,6 +258,7 @@ var builtins = map[string]bool{
 	"complete": true,
 	"jobs":     true,
 	"history":  true,
+	"declare":  true,
 }
 
 type job struct {
@@ -276,6 +277,7 @@ var rl *readline.Instance
 
 var shellHistory []string
 var unwrittenHistory []string
+var shellVariables = map[string]string{}
 
 func findInPath(command string) string {
 	for _, dir := range strings.Split(os.Getenv("PATH"), ":") {
@@ -384,6 +386,29 @@ func runBuiltin(command string, args []string, r redirect) {
 	case "exit":
 		saveHistory()
 		os.Exit(0)
+	case "declare":
+		if len(args) == 0 {
+			return
+		}
+		if args[0] == "-p" {
+			if len(args) >= 2 {
+				name := args[1]
+				if val, ok := shellVariables[name]; ok {
+					fmt.Fprintf(out, "declare -- %s=\"%s\"\n", name, val)
+				} else {
+					fmt.Fprintf(errOut, "declare: %s: not found\n", name)
+				}
+			}
+			return
+		}
+		for _, arg := range args {
+			if idx := strings.Index(arg, "="); idx != -1 {
+				name := arg[:idx]
+				val := arg[idx+1:]
+				shellVariables[name] = val
+			}
+		}
+		return
 	case "echo":
 		fmt.Fprintln(out, strings.Join(args, " "))
 	case "pwd":
@@ -552,11 +577,35 @@ func saveHistory() {
 		return
 	}
 	var builder strings.Builder
-	for _, line := range shellHistory {
+	for _, line := range unwrittenHistory {
 		builder.WriteString(line)
 		builder.WriteByte('\n')
 	}
-	_ = os.WriteFile(histFile, []byte(builder.String()), 0644)
+	f, err := os.OpenFile(histFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.Write([]byte(builder.String()))
+	unwrittenHistory = nil
+}
+
+func isValidIdentifier(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	for i, r := range name {
+		if i == 0 {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_') {
+				return false
+			}
+		} else {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func runExternal(command string, args []string, r redirect, background bool, rawCmd string) {
@@ -762,7 +811,7 @@ func parseArgs(input string) []string {
 }
 
 func main() {
-	completions := []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history"}
+	completions := []string{"echo", "exit", "type", "pwd", "cd", "complete", "jobs", "history", "declare"}
 
 	completer := &tabCompleter{builtins: completions}
 
